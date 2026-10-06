@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DupMe</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Login -->
+  <main id="login" class="screen login">
+    <h1 class="logo">DupMe</h1>
+    <div class="mini-keys" aria-hidden="true"><i></i><i></i><i class="lit"></i><i></i><i class="lit"></i><i></i><i></i></div>
+    <p class="tagline">Listen, remember, play it back.</p>
+    <form id="loginForm" class="login-form">
+      <label for="nick">Nickname</label>
+      <input id="nick" maxlength="16" autocomplete="off" spellcheck="false" required>
+      <button class="btn primary" type="submit">Join game</button>
+      <p id="loginErr" class="err" role="alert"></p>
+    </form>
+  </main>
+
+  <!-- Game -->
+  <main id="game" class="screen game" hidden>
+    <header class="topbar">
+      <span class="logo small">DupMe</span>
+      <p id="welcome" class="welcome">Connected.</p>
+      <span id="modeBadge" class="badge" data-mode="classic">Classic mode</span>
+      <button id="openSettings" class="btn ghost" type="button">Settings</button>
+    </header>
+
+    <section class="online" aria-label="Players online">
+      <span class="online-title">Online (<span id="onlineCount">0</span>)</span>
+      <ul id="onlineList"></ul>
+    </section>
+
+    <section class="board">
+      <div class="plate" id="plateMe">
+        <span class="pname" id="meName"></span>
+        <span class="pscore" id="meScore">0</span>
+        <span class="prole" id="meRole"></span>
+      </div>
+
+      <div class="clock" id="clock" data-state="idle">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="track" cx="60" cy="60" r="52"></circle>
+          <circle class="prog" id="ring" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <div class="clock-text">
+          <span id="timer" class="timer">00:00:00</span>
+          <span id="phaseName" class="phase"></span>
+        </div>
+      </div>
+
+      <div class="plate opp" id="plateOpp">
+        <span class="pname" id="oppName"></span>
+        <span class="pscore" id="oppScore">0</span>
+        <span class="prole" id="oppRole"></span>
+      </div>
+    </section>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <div class="lobby-actions"><button id="botBtn" class="btn small" type="button" hidden>Play vs AI bot</button></div>
+    <ol id="rail" class="rail" aria-label="Pattern"></ol>
+    <p id="hint" class="hint" aria-live="polite"></p>
+
+    <div id="piano" class="piano" data-theme="Classic" role="group" aria-label="Piano keys"></div>
+    <p id="legend" class="legend"></p>
+
+    <section id="result" class="result" hidden>
+      <p id="resultWord" class="result-word"></p>
+      <p id="resultScores" class="result-scores"></p>
+      <button id="rematch" class="btn primary" type="button">Rematch</button>
+    </section>
+
+    <section class="chat" aria-label="Chat">
+      <h2>Chat</h2>
+      <ul id="chatLog" class="chat-log"></ul>
+      <div id="chips" class="chips"></div>
+      <form id="chatForm" class="chat-form">
+        <input id="chatInput" maxlength="200" autocomplete="off" placeholder="Type a message" aria-label="Message">
+        <button class="btn small" type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <!-- Settings -->
+  <dialog id="settings" aria-labelledby="settingsTitle">
+    <form method="dialog" class="dlg">
+      <h2 id="settingsTitle">Settings</h2>
+
+      <fieldset>
+        <legend>Keyboard color</legend>
+        <div id="swatches" class="row"></div>
+        <p class="muted">Or choose a color for each key:</p>
+        <div id="keyColors" class="keyrow"></div>
+        <div class="row"><button type="button" id="resetColors" class="btn ghost small">Reset colors</button></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Your own picture</legend>
+        <p class="muted">Spread one of your own pictures across the keys. It replaces the colors.</p>
+        <div class="row">
+          <label class="btn small filebtn">Choose picture<input type="file" id="imgFile" accept="image/*" hidden></label>
+          <button type="button" id="imgClear" class="btn ghost small">Remove picture</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Text size</legend>
+        <div id="fontBtns" class="row"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>AI hint</legend>
+        <label class="check"><input type="checkbox" id="hintsOn"> Easy mode only: after 3 seconds without a move while repeating, light up two keys (one right, one wrong). It learns which keys you mix up.</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Shortcut keys</legend>
+        <p class="muted">Click a box, then press the key you want for that note.</p>
+        <div id="keyInputs" class="keyrow"></div>
+        <div class="row"><button type="button" id="resetKeys" class="btn ghost small">Reset keys</button></div>
+      </fieldset>
+
+      <div class="row end"><button class="btn primary" value="close">Done</button></div>
+    </form>
+  </dialog>
+
+  <!-- Connection lost -->
+  <dialog id="lost" aria-labelledby="lostTitle">
+    <form method="dialog" class="dlg">
+      <h2 id="lostTitle">Connection lost</h2>
+      <p>The connection to the game server closed.</p>
+      <div class="row end"><button class="btn primary" id="reload" value="close">Back to login</button></div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
