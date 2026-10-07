@@ -2,7 +2,7 @@
 Shows number of connected clients, the client list, a game-mode selector and a Reset button.
 
 Modes(chosen in the server window):
-  classic: basic mode (assignment) no AI hints
+  classic: basic mode (assignment) at most 8 notes per pattern, no AI hints
   easy: at most 5 notes per pattern + AI hints
   expert: no AI hints, and the repeater cannot see the note letters on the keys
 AI bot can join as the second player when a user asks for it ("Play vs AI bot")."""
@@ -14,10 +14,10 @@ import tkinter as tk
 
 HOST, PORT = "0.0.0.0", 45456
 CREATE_SECS, REPEAT_SECS = 10, 20
-MAX_LEN = 5                  # max notes in one pattern (Easy mode)
+MAX_LEN = {"classic": 8, "easy": 5}   # max notes in one pattern per mode (no limit in Expert)
 SHOW_DELAY = 2.0             # pause after the last note so the opponent can see it
 NOTES = list("CDEFGAB")
-BOT_LEN = 6                  # notes the bot creates (MAX_LEN in Easy mode)
+BOT_LEN = 8                  # notes the bot creates (fewer if the mode's MAX_LEN is lower)
 BOT_SKILL, BOT_DECAY, BOT_MIN = 0.95, 0.07, 0.30   # chance to recall note i = SKILL - DECAY * i
 
 
@@ -117,7 +117,7 @@ class Bot:
     # creating
     def create(self):
         mem = self.memory()
-        n = MAX_LEN if self.game.match_mode == "easy" else BOT_LEN
+        n = min(BOT_LEN, MAX_LEN.get(self.game.match_mode, BOT_LEN))
         pat, prev = [], None
         for _ in range(n):
             w = [1.0 + 3.0 * mem.get((prev, x), 0.0) for x in NOTES]
@@ -307,12 +307,12 @@ class Game:
             if note not in NOTES:
                 return
             if self.state == "create" and c is self.creator:
-                capped = self.match_mode == "easy"
-                if capped and len(self.pattern) >= MAX_LEN:
+                limit = MAX_LEN.get(self.match_mode)
+                if limit and len(self.pattern) >= limit:
                     return
                 self.pattern.append(note)
                 self.send_players({"t": "pkey", "note": note, "i": len(self.pattern) - 1})
-                if capped and len(self.pattern) >= MAX_LEN:   # pattern full -> repeat phase after a short pause
+                if limit and len(self.pattern) >= limit:   # pattern full -> repeat phase after a short pause
                     if self.timer:
                         self.timer.cancel()
                     self.token += 1

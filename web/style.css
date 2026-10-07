@@ -274,6 +274,9 @@ dialog {
 dialog::backdrop { background: rgba(8, 10, 40, .72); }
 .dlg { padding: 1.25rem; display: grid; gap: .9rem; }
 .dlg h2 { font-size: 1.4rem; }
+.welcome-dlg { position: fixed; top: 20vh; z-index: 10; width: min(92vw, 24rem); text-align: center; box-shadow: 0 1rem 3rem rgba(0, 0, 0, .5); }
+.welcome-dlg h2 { font-size: 2.2rem; overflow-wrap: anywhere; }
+.welcome-dlg .row.end { justify-content: center; }
 fieldset { border: 2px solid var(--line); border-radius: .75rem; margin: 0; padding: .6rem .8rem .8rem; display: grid; gap: .5rem; }
 legend { padding: 0 .4rem; font-weight: 700; }
 .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }

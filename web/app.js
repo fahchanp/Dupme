@@ -3,7 +3,7 @@
   const NOTES = ["C", "D", "E", "F", "G", "A", "B"];
   const FREQ = { C: 261.63, D: 293.66, E: 329.63, F: 349.23, G: 392.0, A: 440.0, B: 493.88 };
   const DEFAULT_KEYS = { C: "a", D: "s", E: "d", F: "f", G: "g", A: "h", B: "j" };
-  const MAX_LEN = 5;              // max notes in one pattern in Easy mode (server enforces too)
+  const MAX_LEN = { classic: 8, easy: 5 };   // max notes in one pattern per mode (server enforces too)
   const IDLE_MS = 3000;           // AI hint appears after this much idle time
   const RING = 326.73;            // circumference of the timer ring (r = 52)
   const COLORS = { Classic: "#fffbee", Candy: "#ffc1e3", Ocean: "#b3e5fc", Mint: "#b9f6ca", Sunset: "#ffcc80", Night: "#546e7a" };
@@ -48,9 +48,10 @@
     phase: "", round: 1, deadline: 0, total: 1,
     seq: [], pattern: [], repCount: 0, lastAct: Date.now(),
     hint: null, hideLabels: false,
-    mode: "classic", online: [],        // classic = assignment rules, easy = 5-note cap + AI hints, expert = letters hidden
+    mode: "classic", online: [],        // classic = 8-note cap, easy = 5-note cap + AI hints, expert = letters hidden
   };
-  const capped = () => S.mode === "easy";          // 5-note limit and AI hints
+  const capped = () => S.mode === "easy";          // AI hints
+  const maxLen = () => MAX_LEN[S.mode] || 0;       // note limit while creating (0 = none)
   const expert = () => S.mode === "expert";        // letters hidden while repeating
   const keyEls = {};
   const flashTimers = {};
@@ -146,7 +147,7 @@
     b.textContent = { easy: "Easy mode", expert: "Expert mode" }[S.mode] || "Classic mode";
     b.title = { easy: "Easier: 5 notes at most, plus AI hints",
                 expert: "Harder: the letters on the keys are hidden while you repeat" }[S.mode]
-      || "The standard rules: 10 seconds to create, 20 seconds to repeat";
+      || "The standard rules: 10 seconds to create (8 notes at most), 20 seconds to repeat";
   }
   function renderLobbyActions() {                 // the AI bot button shows only when you wait alone
     $("botBtn").hidden = S.inMatch || S.online.length !== 1;
@@ -155,9 +156,9 @@
   function renderRail(popIndex) {
     const rail = $("rail");
     // Placeholders only where the count is known: the pattern length while repeating, or the
-    // 5-note limit while creating in Easy mode. Otherwise slots appear as notes are played.
+    // mode's note limit while creating. Otherwise slots appear as notes are played.
     const n = S.phase === "REPEAT" && S.pattern.length ? S.pattern.length
-      : capped() && S.inMatch && S.phase === "CREATE" ? MAX_LEN : S.seq.length;
+      : maxLen() && S.inMatch && S.phase === "CREATE" ? maxLen() : S.seq.length;
     rail.textContent = "";
     for (let i = 0; i < n; i++) {
       const li = document.createElement("li");
@@ -271,7 +272,7 @@
   // ---------- input ----------
   function press(note) {
     if (!S.active) return;
-    if (capped() && S.phase === "CREATE" && S.pattern.length >= MAX_LEN) return;
+    if (maxLen() && S.phase === "CREATE" && S.pattern.length >= maxLen()) return;
     ensureAudio();
     S.lastAct = Date.now();
     clearHint();
@@ -291,8 +292,13 @@
   // ---------- messages from the game server ----------
   function handle(m) {
     switch (m.t) {
-      case "nick":
-        S.me = m.nick; renderNames(); break;
+      case "nick":                                   // server accepted the nickname: say hello
+        S.me = m.nick; renderNames();
+        $("welcome").textContent = "Welcome, " + S.me + ".";
+        $("welcomeTitle").textContent = "Welcome, " + S.me + "!";
+        if (!$("welcomeDlg").open) $("welcomeDlg").show();   // not modal: a match may start right away
+        setTimeout(() => $("welcomeDlg").close(), 2500);
+        break;
 
       case "players":
         S.online = m.list;
@@ -335,7 +341,7 @@
         setRoles(m.creator, m.repeater, m.phase);
         const r = "Round " + m.round + ": ";
         if (m.phase === "create") {
-          setStatus(mine ? r + "Create a pattern!" + (capped() ? " (max " + MAX_LEN + " notes)" : "")
+          setStatus(mine ? r + "Create a pattern!" + (maxLen() ? " (max " + maxLen() + " notes)" : "")
                          : r + "Memorize " + m.creator + "'s pattern...");
         } else {
           setStatus(mine ? r + "Repeat the pattern!" : r + m.repeater + " is repeating...");
@@ -348,11 +354,11 @@
         S.pattern.push(m.note);
         clearHint();
         S.seq.push({ note: m.note, ok: null });
-        const full = capped() && S.phase === "CREATE" && S.pattern.length >= MAX_LEN;
+        const full = maxLen() && S.phase === "CREATE" && S.pattern.length >= maxLen();
         if (full) {                                  // pattern full: stop the clock, lock the keys
           S.deadline = 0;
           setActive(false);                          // (repaints keys, so flash comes after)
-          setStatus("Pattern complete (" + MAX_LEN + " notes)! Repeat phase starting...");
+          setStatus("Pattern complete (" + maxLen() + " notes)! Repeat phase starting...");
         }
         flash(m.note, "p", full ? 1800 : 250);       // last key stays lit so the opponent sees it
         renderRail(S.seq.length - 1);

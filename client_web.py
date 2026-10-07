@@ -1,4 +1,4 @@
-"""Dup Me - web client (HTML / CSS / JS interface).
+""" Web client
 
 Run:   python client_web.py            (uses SERVER_HOST below)
        python client_web.py 192.168.1.20   (optional: server IP on the command line)
@@ -61,7 +61,7 @@ class Bridge:
                         self.emit(json.loads(line.decode()))
         except (OSError, ValueError):
             pass
-        if s is self.sock:                # not closed on purpose -> tell the page
+        if s is self.sock: # not closed on purpose -> tell the page
             self.sock = None
             self.emit({"t": "disconnected"})
 
