@@ -5,7 +5,7 @@ Modes(chosen in the server window):
   classic: basic mode (assignment) no AI hints
   easy: at most 5 notes per pattern + AI hints
   expert: no AI hints, and the repeater cannot see the note letters on the keys
-An AI bot can join as the second player when a single human asks for it ("Play vs AI bot")."""
+AI bot can join as the second player when a user asks for it ("Play vs AI bot")."""
 import json
 import random
 import socket
@@ -38,9 +38,9 @@ class Client:
 class Bot:
     """AI opponent that lives inside the server (it has no socket).
 
-    * Repeating: it remembers the pattern it saw, but - like a person - gets less reliable
+    - Repeating: it remembers the pattern it saw, but - like a person - gets less reliable
       the longer the pattern is (chance of recalling note i = BOT_SKILL - BOT_DECAY * i).
-    * Creating: it LEARNS the human's weak spots. Every time the human repeats one of its
+    - Creating: it learns the human's weak spots. Every time the human repeats one of its
       patterns, it records which transition (previous note -> next note) was missed, and
       builds later patterns with more of those transitions."""
 
@@ -52,7 +52,7 @@ class Bot:
         self.seen, self.mine = [], []      # pattern I watched / pattern I created
         self.creator_me, self.other = False, None
 
-    # ----- messages from the game (same messages a real client would get) -----
+    # messages from the game (same messages a real client would get)
     def send(self, m):
         t = m.get("t")
         if t == "start":
@@ -81,13 +81,13 @@ class Bot:
         elif not self.creator_me:
             self.recall()
 
-    # ----- helpers -----
+    # helpers
     def later(self, delay, fn, *args):
         tok = self.game.token
 
         def run():
             with self.game.lock:
-                if self.game.token == tok:       # ignore if the game moved on / was reset
+                if self.game.token == tok: # ignore if the game moved on / was reset
                     fn(*args)
         t = threading.Timer(delay, run)
         t.daemon = True
@@ -102,7 +102,7 @@ class Bot:
     def memory(self):
         return self.game.bot_memory.setdefault(self.other, {})
 
-    # ----- learning -----
+    # learning
     def learn(self, m):
         i = m["i"]
         if i >= len(self.mine):
@@ -114,7 +114,7 @@ class Bot:
         else:
             mem[key] = mem.get(key, 0.0) + 1.0
 
-    # ----- creating -----
+    # creating
     def create(self):
         mem = self.memory()
         n = MAX_LEN if self.game.match_mode == "easy" else BOT_LEN
@@ -122,7 +122,7 @@ class Bot:
         for _ in range(n):
             w = [1.0 + 3.0 * mem.get((prev, x), 0.0) for x in NOTES]
             if prev:
-                w[NOTES.index(prev)] *= 0.4          # fewer immediate repeats
+                w[NOTES.index(prev)] *= 0.4 # fewer immediate repeats
             prev = random.choices(NOTES, w)[0]
             pat.append(prev)
         self.mine = pat
@@ -136,12 +136,12 @@ class Bot:
             t += random.uniform(0.5, 0.9)
             self.later(t, self.game.on_key, self, note)
 
-    # ----- repeating -----
+    # repeating
     def recall(self):
         pat = list(self.seen)
         if not pat:
             return
-        gap = max(0.3, min(1.3, 15.0 / len(pat)))     # stay inside the 20 s limit
+        gap = max(0.3, min(1.3, 15.0 / len(pat)))     # stay inside the 20s limit
         t = random.uniform(1.2, 2.2)
         for i, note in enumerate(pat):
             if random.random() > max(BOT_MIN, BOT_SKILL - BOT_DECAY * i):
@@ -161,7 +161,7 @@ class Game:
         self.timer = None
         self.reset_state()
 
-    # ---------- helpers ----------
+    # helpers
     def reset_state(self):
         if self.timer:
             self.timer.cancel()
@@ -187,7 +187,7 @@ class Game:
         for c in self.players:
             c.send(msg)
 
-    # ---------- connections ----------
+    # connections
     def add(self, c, nick):
         with self.lock:
             base, n = nick, 2
@@ -228,7 +228,7 @@ class Game:
                 self.stop(f"{c.nick} left. Waiting for players...")
                 self.try_start()
 
-    # ---------- match flow ----------
+    # match flow
     def try_start(self):
         if self.state == "idle" and len(self.clients) >= 2:
             self.players = self.clients[:2]
@@ -324,7 +324,7 @@ class Game:
                 if i >= len(self.pattern):
                     return
                 self.repeat.append(note)
-                ok = note == self.pattern[i]          # correct button AND correct order
+                ok = note == self.pattern[i] # correct button AND correct order
                 if ok:
                     self.scores[c.nick] += 1
                 self.send_players({"t": "rkey", "note": note, "i": i, "ok": ok,
