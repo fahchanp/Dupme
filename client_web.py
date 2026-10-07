@@ -17,7 +17,7 @@ import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-SERVER_HOST, SERVER_PORT = "192.168.0.11", 45456 # game server (hardcoded, as the assignment allows)
+SERVER_HOST, SERVER_PORT = "192.168.0.110", 45456 # game server
 WEB_PORT = 8767 # first local port to try
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),

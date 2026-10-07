@@ -7,7 +7,6 @@
   const IDLE_MS = 3000;           // AI hint appears after this much idle time
   const RING = 326.73;            // circumference of the timer ring (r = 52)
   const COLORS = { Classic: "#fffbee", Candy: "#ffc1e3", Ocean: "#b3e5fc", Mint: "#b9f6ca", Sunset: "#ffcc80", Night: "#546e7a" };
-  const FONT_SCALES = { Small: 0.85, Medium: 1, Large: 1.2, "X-Large": 1.4 };
   const QUICK = ["Good luck!", "Nice one!", "GG", "Oops!", "Rematch?"];
 
   const $ = (id) => document.getElementById(id);
@@ -16,12 +15,11 @@
   // ---------- settings (saved in this browser) ----------
   const cfg = loadCfg();
   function loadCfg() {
-    const c = { color: "Classic", font: "Medium", hints: true, keys: { ...DEFAULT_KEYS }, custom: {} };
+    const c = { color: "Classic", hints: true, keys: { ...DEFAULT_KEYS }, custom: {} };
     try {
       const d = JSON.parse(localStorage.getItem("dupme.settings"));
       if (d) {
         if (d.color in COLORS) c.color = d.color;
-        if (d.font in FONT_SCALES) c.font = d.font;
         if (typeof d.hints === "boolean") c.hints = d.hints;
         if (d.custom) for (const n of NOTES) if (/^#[0-9a-f]{6}$/i.test(d.custom[n] || "")) c.custom[n] = d.custom[n];
         const k = d.keys;
@@ -200,10 +198,6 @@
       }
     }
     renderLegend();
-  }
-
-  function applyFont() {
-    document.documentElement.style.fontSize = (16 * FONT_SCALES[cfg.font]) + "px";
   }
 
   function setActive(on) {
@@ -449,7 +443,7 @@
   }
 
   function buildSettings() {
-    const sw = $("swatches"), fb = $("fontBtns");
+    const sw = $("swatches");
     for (const name of Object.keys(COLORS)) {
       const b = document.createElement("button");
       b.type = "button"; b.className = "swatch"; b.dataset.v = name;
@@ -457,12 +451,6 @@
       b.append(name);
       b.addEventListener("click", () => { cfg.color = name; cfg.custom = {}; saveCfg(); paintKeys(); markSettings(); });
       sw.appendChild(b);
-    }
-    for (const name of Object.keys(FONT_SCALES)) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "opt"; b.dataset.v = name; b.textContent = name;
-      b.addEventListener("click", () => { cfg.font = name; saveCfg(); applyFont(); markSettings(); });
-      fb.appendChild(b);
     }
     const kc = $("keyColors");
     for (const n of NOTES) {
@@ -507,7 +495,6 @@
 
   function markSettings() {
     for (const b of document.querySelectorAll("#swatches .swatch")) b.setAttribute("aria-pressed", String(b.dataset.v === cfg.color));
-    for (const b of document.querySelectorAll("#fontBtns .opt")) b.setAttribute("aria-pressed", String(b.dataset.v === cfg.font));
     for (const inp of document.querySelectorAll("#keyColors input")) inp.value = cfg.custom[inp.dataset.note] || COLORS[cfg.color];
     $("hintsOn").checked = cfg.hints;
   }
@@ -539,7 +526,7 @@
 
   async function init() {
     buildPiano(); buildChips(); buildSettings();
-    applyFont(); paintKeys(); renderRail(); renderNames();
+    paintKeys(); renderRail(); renderNames();
     setInterval(tick, 100);
 
     $("botBtn").addEventListener("click", () => { send({ t: "bot" }); $("botBtn").hidden = true; });

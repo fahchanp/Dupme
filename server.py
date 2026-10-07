@@ -1,10 +1,10 @@
-"""Dup Me - server. Run:  python server.py
+"""Server
 Shows number of connected clients, the client list, a game-mode selector and a Reset button.
 
-Modes (chosen in the server window, applied from the next match):
-  classic    exactly the assignment rules - 10 s to create (any length), 20 s to repeat
-  easy       helpers: at most 5 notes per pattern (then a short pause so the opponent can see it) + AI hints
-  expert     harder: no helpers, and the repeater cannot see the note letters on the keys
+Modes(chosen in the server window):
+  classic: basic mode (assignment) no AI hints
+  easy: at most 5 notes per pattern + AI hints
+  expert: no AI hints, and the repeater cannot see the note letters on the keys
 An AI bot can join as the second player when a single human asks for it ("Play vs AI bot")."""
 import json
 import random
@@ -428,13 +428,13 @@ def main():
     info = tk.Label(root, font=("Arial", 11))
     info.pack(pady=5)
     mode = tk.StringVar(value=game.mode)
-    mf = tk.LabelFrame(root, text="Game mode (applies from the next match)")
+    mf = tk.LabelFrame(root, text="Game mode")
     mf.pack(padx=15, pady=(0, 8), fill="x")
     tk.Radiobutton(mf, text="Classic", variable=mode, value="classic",
                    command=lambda: game.set_mode(mode.get())).pack(anchor="w")
-    tk.Radiobutton(mf, text="Easy - max 5 notes + AI hints", variable=mode,
+    tk.Radiobutton(mf, text="Easy", variable=mode,
                    value="easy", command=lambda: game.set_mode(mode.get())).pack(anchor="w")
-    tk.Radiobutton(mf, text="Expert - letters hidden while repeating", variable=mode,
+    tk.Radiobutton(mf, text="Expert", variable=mode,
                    value="expert", command=lambda: game.set_mode(mode.get())).pack(anchor="w")
     tk.Button(root, text="Reset game", bg="#e57373", font=("Arial", 12, "bold"),
               command=game.reset).pack(pady=(0, 12))
