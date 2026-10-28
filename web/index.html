@@ -61,7 +61,6 @@
 
     <p id="status" class="status" role="status" aria-live="polite"></p>
     <div class="lobby-actions"><button id="botBtn" class="btn small" type="button" hidden>Play vs AI bot</button></div>
-    <ol id="rail" class="rail" aria-label="Pattern"></ol>
     <p id="hint" class="hint" aria-live="polite"></p>
 
     <div id="piano" class="piano" data-theme="Classic" role="group" aria-label="Piano keys"></div>
@@ -70,6 +69,10 @@
     <section id="result" class="result" hidden>
       <p id="resultWord" class="result-word"></p>
       <p id="resultScores" class="result-scores"></p>
+      <table id="resultStats" class="result-stats" hidden>
+        <thead><tr><th>Player</th><th>Accuracy</th><th>Best streak</th><th>Avg time / note</th></tr></thead>
+        <tbody id="statsBody"></tbody>
+      </table>
       <button id="rematch" class="btn primary" type="button">Rematch</button>
     </section>
 
@@ -107,8 +110,8 @@
       </fieldset>
 
       <fieldset>
-        <legend>AI hint</legend>
-        <label class="check"><input type="checkbox" id="hintsOn"> Easy mode only: after 3 seconds without a move while repeating, light up two keys (one right, one wrong). It learns which keys you mix up.</label>
+        <legend>Hint</legend>
+        <label class="check"><input type="checkbox" id="hintsOn"> Easy mode only: after 3 seconds without a move while repeating, light up two keys (one right, one wrong).</label>
       </fieldset>
 
       <fieldset>

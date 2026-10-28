@@ -3,8 +3,8 @@
   const NOTES = ["C", "D", "E", "F", "G", "A", "B"];
   const FREQ = { C: 261.63, D: 293.66, E: 329.63, F: 349.23, G: 392.0, A: 440.0, B: 493.88 };
   const DEFAULT_KEYS = { C: "a", D: "s", E: "d", F: "f", G: "g", A: "h", B: "j" };
-  const MAX_LEN = { classic: 8, easy: 5 };   // max notes in one pattern per mode (server enforces too)
-  const IDLE_MS = 3000;           // AI hint appears after this much idle time
+  const MAX_LEN = { easy: 5, reverse: 8 };   // max notes in one pattern per mode (server enforces too)
+  const IDLE_MS = 3000;           // hint appears after this much idle time
   const RING = 326.73;            // circumference of the timer ring (r = 52)
   const COLORS = { Classic: "#fffbee", Candy: "#ffc1e3", Ocean: "#b3e5fc", Mint: "#b9f6ca", Sunset: "#ffcc80", Night: "#546e7a" };
   const QUICK = ["Good luck!", "Nice one!", "GG", "Oops!", "Rematch?"];
@@ -47,12 +47,12 @@
     me: "", opp: "", scores: {}, inMatch: false, active: false,
     phase: "", round: 1, deadline: 0, total: 1,
     seq: [], pattern: [], repCount: 0, lastAct: Date.now(),
-    hint: null, hideLabels: false,
-    mode: "classic", online: [],        // classic = 8-note cap, easy = 5-note cap + AI hints, expert = letters hidden
+    hint: null, creating: false,
+    mode: "classic", online: [],        // classic = assignment rules, easy = 5-note cap + hints, expert = play by ear, reverse = play it backwards
   };
-  const capped = () => S.mode === "easy";          // AI hints
+  const capped = () => S.mode === "easy";          // hints
   const maxLen = () => MAX_LEN[S.mode] || 0;       // note limit while creating (0 = none)
-  const expert = () => S.mode === "expert";        // letters hidden while repeating
+  const expert = () => S.mode === "expert";        // the watcher only hears the pattern
   const keyEls = {};
   const flashTimers = {};
 
@@ -144,41 +144,19 @@
   function renderMode() {
     const b = $("modeBadge");
     b.dataset.mode = S.mode;
-    b.textContent = { easy: "Easy mode", expert: "Expert mode" }[S.mode] || "Classic mode";
-    b.title = { easy: "Easier: 5 notes at most, plus AI hints",
-                expert: "Harder: the letters on the keys are hidden while you repeat" }[S.mode]
-      || "The standard rules: 10 seconds to create (8 notes at most), 20 seconds to repeat";
+    b.textContent = { easy: "Easy mode", expert: "Expert mode", reverse: "Reverse mode" }[S.mode] || "Classic mode";
+    b.title = { easy: "Easier: 5 notes at most, plus hints",
+                expert: "Play by ear: you only hear the opponent's pattern, the keys do not light up",
+                reverse: "Repeat the pattern backwards: last note first (8 notes at most)" }[S.mode]
+      || "The standard rules: 10 seconds to create, 20 seconds to repeat";
   }
   function renderLobbyActions() {                 // the AI bot button shows only when you wait alone
     $("botBtn").hidden = S.inMatch || S.online.length !== 1;
   }
 
-  function renderRail(popIndex) {
-    const rail = $("rail");
-    // Placeholders only where the count is known: the pattern length while repeating, or the
-    // mode's note limit while creating. Otherwise slots appear as notes are played.
-    const n = S.phase === "REPEAT" && S.pattern.length ? S.pattern.length
-      : maxLen() && S.inMatch && S.phase === "CREATE" ? maxLen() : S.seq.length;
-    rail.textContent = "";
-    for (let i = 0; i < n; i++) {
-      const li = document.createElement("li");
-      li.className = "slot";
-      const e = S.seq[i];
-      if (e) {
-        li.classList.add("filled");
-        if (e.ok === true) li.classList.add("ok");
-        if (e.ok === false) li.classList.add("bad");
-        li.textContent = e.note + (e.ok === true ? " ✓" : e.ok === false ? " ✗" : "");
-      }
-      if (i === popIndex) li.classList.add("pop");
-      rail.appendChild(li);
-    }
-  }
-
   function renderLegend() {
     const keys = NOTES.map((n) => cfg.keys[n].toUpperCase()).join(" ");
     $("legend").textContent = "Keyboard: " + keys + " = " + NOTES.join(" ");
-    $("legend").style.visibility = S.hideLabels ? "hidden" : "visible";
   }
 
   function paintKeys() {
@@ -186,7 +164,6 @@
     p.dataset.theme = cfg.color;
     p.dataset.img = img ? "1" : "0";
     if (img) p.style.setProperty("--img", 'url("' + img + '")'); else p.style.removeProperty("--img");
-    p.dataset.hide = S.hideLabels ? "1" : "0";
     p.classList.toggle("on", S.active);
     for (const n of NOTES) {                       // per-key colors override the theme
       const el = keyEls[n], c = cfg.custom[n];
@@ -203,7 +180,6 @@
 
   function setActive(on) {
     S.active = on;
-    S.hideLabels = on && S.phase === "REPEAT" && expert();     // the repeater sees no letters on the keys
     clearHint();
     paintKeys();
   }
@@ -216,16 +192,8 @@
     flashTimers[note] = setTimeout(() => { delete el.dataset.flash; }, ms || 250);
   }
 
-  // ---------- AI hint (Easy mode, repeat phase) ----------
-  // Shows one right key and one wrong key. The wrong key is not random: the hint learns which
-  // key you usually press by mistake for the right one (saved in this browser) and offers that.
-  let conf = {};
-  try { conf = JSON.parse(localStorage.getItem("dupme.confusion")) || {}; } catch (e) { conf = {}; }
-  function learnMistake(expected, pressed) {
-    conf[expected] = conf[expected] || {};
-    conf[expected][pressed] = (conf[expected][pressed] || 0) + 1;
-    try { localStorage.setItem("dupme.confusion", JSON.stringify(conf)); } catch (e) { /* ignore */ }
-  }
+  // ---------- hint (Easy mode, repeat phase) ----------
+  // Shows two keys: the right one and one other key picked at random.
   function clearHint() {
     if (S.hint) for (const n of S.hint) delete keyEls[n].dataset.hint;
     S.hint = null;
@@ -235,19 +203,12 @@
     if (!S.active || !S.deadline || S.hint || !cfg.hints || !capped() || S.phase !== "REPEAT") return;
     if (now - S.lastAct < IDLE_MS || S.repCount >= S.pattern.length) return;
     const right = S.pattern[S.repCount];
-    const seen = conf[right] || {};
     const others = NOTES.filter((n) => n !== right);
-    const weights = others.map((n) => 1 + 4 * (seen[n] || 0) +
-      (Math.abs(NOTES.indexOf(n) - NOTES.indexOf(right)) === 1 ? 1 : 0));   // neighbours are easy to mix up
-    let r = Math.random() * weights.reduce((x, y) => x + y, 0), k = 0;
-    while (k < others.length - 1 && (r -= weights[k]) > 0) k++;
-    const pair = [right, others[k]];
+    const pair = [right, others[Math.floor(Math.random() * others.length)]];
     if (Math.random() < 0.5) pair.reverse();
     S.hint = pair;
     for (const n of pair) keyEls[n].dataset.hint = "1";
-    const learned = Object.values(seen).some((v) => v > 0);
-    $("hint").textContent = "AI hint" + (learned ? " (from your past mistakes)" : "") +
-      ": one of these is next: " + pair[0] + " or " + pair[1];
+    $("hint").textContent = "Hint: one of these is next: " + pair[0] + " or " + pair[1];
   }
 
   // ---------- timer ----------
@@ -303,7 +264,7 @@
       case "players":
         S.online = m.list;
         if (!S.inMatch) S.mode = m.mode || "classic";    // a running match keeps its own mode
-        renderOnline(); renderMode(); renderLobbyActions(); renderRail();
+        renderOnline(); renderMode(); renderLobbyActions();
         if (!S.inMatch) {
           setStatus("Online: " + m.list.join(", ") + (m.list.length < 2 ? "\nWaiting for another player..." : ""));
         }
@@ -315,7 +276,7 @@
         $("result").hidden = true;
         $("welcome").textContent = "Lobby";
         setStatus(m.text);
-        renderNames(); renderRail();
+        renderNames();
         break;
 
       case "start":
@@ -337,16 +298,18 @@
         if (m.phase === "create") S.pattern = [];
         $("phaseName").textContent = m.phase === "create" ? "Create" : "Repeat";
         const mine = (m.phase === "create" ? m.creator : m.repeater) === S.me;
+        S.creating = mine && m.phase === "create";
         setActive(mine);
         setRoles(m.creator, m.repeater, m.phase);
         const r = "Round " + m.round + ": ";
         if (m.phase === "create") {
           setStatus(mine ? r + "Create a pattern!" + (maxLen() ? " (max " + maxLen() + " notes)" : "")
-                         : r + "Memorize " + m.creator + "'s pattern...");
+                         : r + (expert() ? "Listen to " : "Memorize ") + m.creator + "'s pattern...");
         } else {
-          setStatus(mine ? r + "Repeat the pattern!" : r + m.repeater + " is repeating...");
+          const back = S.mode === "reverse";
+          setStatus(mine ? r + (back ? "Repeat the pattern BACKWARDS (last note first)!" : "Repeat the pattern!")
+                         : r + m.repeater + " is repeating" + (back ? " backwards..." : "..."));
         }
-        renderRail();
         break;
       }
 
@@ -360,19 +323,17 @@
           setActive(false);                          // (repaints keys, so flash comes after)
           setStatus("Pattern complete (" + maxLen() + " notes)! Repeat phase starting...");
         }
-        flash(m.note, "p", full ? 1800 : 250);       // last key stays lit so the opponent sees it
-        renderRail(S.seq.length - 1);
+        if (expert() && !S.creating) playNote(m.note);   // Expert: the watcher only hears the note
+        else flash(m.note, "p", full ? 1000 : 250);  // last key stays lit so the opponent sees it
         break;
       }
 
       case "rkey":
-        if (!m.ok && S.active && S.pattern[m.i]) learnMistake(S.pattern[m.i], m.note);
         S.repCount += 1;
         clearHint();
         S.seq.push({ note: m.note, ok: m.ok });
         flash(m.note, m.ok ? "ok" : "bad", 250);
         S.scores = m.scores;
-        renderRail(S.seq.length - 1);
         renderScores();
         break;
 
@@ -392,6 +353,7 @@
         box.dataset.kind = m.result.toLowerCase();
         $("resultWord").textContent = m.result;
         $("resultScores").textContent = Object.entries(m.scores).map(([k, v]) => k + " " + v).join("  vs  ");
+        renderStats(m.stats || {});
         box.hidden = false;
         break;
       }
@@ -416,6 +378,24 @@
       case "disconnected":
         $("lost").showModal(); break;
     }
+  }
+
+  function renderStats(stats) {                   // accuracy table at the end of a match
+    const body = $("statsBody");
+    body.textContent = "";
+    for (const name of [S.me, S.opp]) {
+      const st = stats[name];
+      if (!st) continue;
+      const tr = document.createElement("tr");
+      if (name === S.me) tr.className = "me";
+      const cells = [name === S.me ? name + " (you)" : name,
+                     st.acc + "% (" + st.correct + "/" + st.total + ")",
+                     String(st.best),
+                     st.avg == null ? "-" : st.avg.toFixed(2) + " s"];
+      for (const c of cells) { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); }
+      body.appendChild(tr);
+    }
+    $("resultStats").hidden = !body.children.length;
   }
 
   // ---------- setup ----------
@@ -532,7 +512,7 @@
 
   async function init() {
     buildPiano(); buildChips(); buildSettings();
-    paintKeys(); renderRail(); renderNames();
+    paintKeys(); renderNames();
     setInterval(tick, 100);
 
     $("botBtn").addEventListener("click", () => { send({ t: "bot" }); $("botBtn").hidden = true; });

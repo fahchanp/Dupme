@@ -2,20 +2,22 @@
 Shows number of connected clients, the client list, a game-mode selector and a Reset button.
 
 Modes(chosen in the server window):
-  classic: basic mode (assignment) at most 8 notes per pattern, no AI hints
-  easy: at most 5 notes per pattern + AI hints
-  expert: no AI hints, and the repeater cannot see the note letters on the keys
-AI bot can join as the second player when a user asks for it ("Play vs AI bot")."""
+  classic: basic mode (assignment rules), no note limit, no hints
+  easy: at most 5 notes per pattern + hints
+  expert: play by ear - the repeater only hears the pattern (the keys do not light up), no hints
+  reverse: at most 8 notes per pattern, and the repeater must play it backwards (last note first)
+  AI bot can join as the second player when a user asks for it ("Play vs AI bot")."""
 import json
 import random
 import socket
 import threading
+import time
 import tkinter as tk
 
 HOST, PORT = "0.0.0.0", 45456
 CREATE_SECS, REPEAT_SECS = 10, 20
-MAX_LEN = {"classic": 8, "easy": 5}   # max notes in one pattern per mode (no limit in Expert)
-SHOW_DELAY = 2.0             # pause after the last note so the opponent can see it
+MAX_LEN = {"easy": 5, "reverse": 8}   # max notes in one pattern per mode (no limit in Classic and Expert)
+SHOW_DELAY = 1.0             # pause after the last note so the opponent can see it
 NOTES = list("CDEFGAB")
 BOT_LEN = 8                  # notes the bot creates (fewer if the mode's MAX_LEN is lower)
 BOT_SKILL, BOT_DECAY, BOT_MIN = 0.95, 0.07, 0.30   # chance to recall note i = SKILL - DECAY * i
@@ -107,6 +109,8 @@ class Bot:
         i = m["i"]
         if i >= len(self.mine):
             return
+        if self.game.match_mode == "reverse":   # the human played the pattern backwards
+            i = len(self.mine) - 1 - i
         key = (self.mine[i - 1] if i else None, self.mine[i])
         mem = self.memory()
         if m["ok"]:
@@ -141,6 +145,8 @@ class Bot:
         pat = list(self.seen)
         if not pat:
             return
+        if self.game.match_mode == "reverse":
+            pat.reverse()
         gap = max(0.3, min(1.3, 15.0 / len(pat)))     # stay inside the 20s limit
         t = random.uniform(1.2, 2.2)
         for i, note in enumerate(pat):
@@ -154,7 +160,7 @@ class Bot:
 class Game:
     def __init__(self):
         self.lock = threading.RLock()
-        self.mode = "classic"      # classic | easy | expert (used from the next match)
+        self.mode = "classic"      # classic | easy | expert | reverse (used from the next match)
         self.bot_memory = {}       # human nick -> what the bot learned about their mistakes
         self.clients = []          # all joined clients
         self.token = 0             # invalidates stale timers
@@ -172,6 +178,8 @@ class Game:
         self.pattern, self.repeat = [], []
         self.round = 0
         self.creator = self.repeater = self.winner = None
+        self.stats = {}            # nick -> accuracy stats for the match
+        self.last_t = 0.0          # time of the repeater's last key (or the phase start)
 
     def names(self):
         return [c.nick for c in self.clients]
@@ -239,6 +247,8 @@ class Game:
         self.match_mode = self.mode            # mode is fixed for the whole match
         self.scores = {a.nick: 0, b.nick: 0}
         self.round, self.winner = 1, None
+        self.stats = {c.nick: {"correct": 0, "total": 0, "streak": 0, "best": 0,
+                               "played": 0, "time": 0.0} for c in self.players}
         self.creator = first
         self.repeater = b if first is a else a
         for c in self.players:
@@ -254,6 +264,9 @@ class Game:
         secs = CREATE_SECS if phase == "create" else REPEAT_SECS
         if phase == "create":
             self.pattern = []
+        else:
+            self.stats[self.repeater.nick]["total"] += len(self.pattern)
+            self.last_t = time.time()
         self.repeat = []
         self.send_players({"t": "phase", "phase": phase, "round": self.round,
                            "seconds": secs, "creator": self.creator.nick,
@@ -298,9 +311,14 @@ class Game:
         a, b = self.players
         sa, sb = self.scores[a.nick], self.scores[b.nick]
         self.winner = a if sa > sb else b if sb > sa else None
+        stats = {}
+        for nick, st in self.stats.items():
+            stats[nick] = {"acc": round(100 * st["correct"] / st["total"]) if st["total"] else 0,
+                           "correct": st["correct"], "total": st["total"], "best": st["best"],
+                           "avg": round(st["time"] / st["played"], 2) if st["played"] else None}
         for c in self.players:
             res = "Draw" if self.winner is None else ("Win" if self.winner is c else "Lost")
-            c.send({"t": "end", "result": res, "scores": self.scores})
+            c.send({"t": "end", "result": res, "scores": self.scores, "stats": stats})
 
     def on_key(self, c, note):
         with self.lock:
@@ -324,9 +342,17 @@ class Game:
                 if i >= len(self.pattern):
                     return
                 self.repeat.append(note)
-                ok = note == self.pattern[i] # correct button AND correct order
+                j = len(self.pattern) - 1 - i if self.match_mode == "reverse" else i
+                ok = note == self.pattern[j] # correct button AND correct order
                 if ok:
                     self.scores[c.nick] += 1
+                now, st = time.time(), self.stats[c.nick]
+                st["played"] += 1
+                st["time"] += now - self.last_t # time taken for this note
+                self.last_t = now
+                st["correct"] += ok
+                st["streak"] = st["streak"] + 1 if ok else 0
+                st["best"] = max(st["best"], st["streak"])
                 self.send_players({"t": "rkey", "note": note, "i": i, "ok": ok,
                                    "scores": self.scores})
                 if len(self.repeat) == len(self.pattern):
@@ -436,6 +462,8 @@ def main():
                    value="easy", command=lambda: game.set_mode(mode.get())).pack(anchor="w")
     tk.Radiobutton(mf, text="Expert", variable=mode,
                    value="expert", command=lambda: game.set_mode(mode.get())).pack(anchor="w")
+    tk.Radiobutton(mf, text="Reverse", variable=mode,
+                   value="reverse", command=lambda: game.set_mode(mode.get())).pack(anchor="w")
     tk.Button(root, text="Reset game", bg="#e57373", font=("Arial", 12, "bold"),
               command=game.reset).pack(pady=(0, 12))
 
