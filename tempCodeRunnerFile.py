@@ -1,2 +1,1 @@
-
-    threading.Timer(0.5, webbrowser.open, args=(url,)).start()
+Browsers cannot open raw TCP sockets, so this small program does the socket part:

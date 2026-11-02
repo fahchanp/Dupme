@@ -26,7 +26,7 @@ BOT_SKILL, BOT_DECAY, BOT_MIN = 0.95, 0.07, 0.30   # chance to recall note i = S
 class Client:
     def __init__(self, sock, addr):
         self.sock, self.addr, self.nick = sock, addr, None
-        self.rematch = False
+        self.rematch = self.ready = False
         self.wlock = threading.Lock()
 
     def send(self, msg):
@@ -49,7 +49,7 @@ class Bot:
     def __init__(self, game, nick, owner):
         self.game, self.nick, self.owner = game, nick, owner
         self.addr = ("AI", 0)
-        self.rematch = False
+        self.rematch = self.ready = False
         self.timers = []
         self.seen, self.mine = [], []      # pattern I watched / pattern I created
         self.creator_me, self.other = False, None
@@ -62,6 +62,8 @@ class Bot:
             self.seen, self.mine = [], []
         elif t == "lobby":
             self.cancel()
+        elif t == "pair":
+            self.later(1.0, self.game.on_ready, self)   # the bot is always ready
         elif t == "phase":
             self.on_phase(m)
         elif t == "pkey" and not self.creator_me:
@@ -173,7 +175,7 @@ class Game:
             self.timer.cancel()
         self.token += 1
         self.match_mode = self.mode
-        self.state = "idle"        # idle | create | repeat | between | ended
+        self.state = "idle"        # idle | ready | create | repeat | between | ended
         self.players, self.scores = [], {}
         self.pattern, self.repeat = [], []
         self.round = 0
@@ -238,9 +240,28 @@ class Game:
 
     # match flow
     def try_start(self):
+        """Pair the first two clients; the match starts once both press Ready."""
         if self.state == "idle" and len(self.clients) >= 2:
             self.players = self.clients[:2]
-            self.begin(random.choice(self.players))   # random first player
+            self.state = "ready"
+            self.token += 1
+            a, b = self.players
+            for c in self.players:
+                c.ready = False
+                c.send({"t": "pair", "you": c.nick, "opponent": (b if c is a else a).nick,
+                        "ready": self.ready_map()})
+
+    def ready_map(self):
+        return {c.nick: c.ready for c in self.players}
+
+    def on_ready(self, c):
+        with self.lock:
+            if self.state != "ready" or c not in self.players or c.ready:
+                return
+            c.ready = True
+            self.send_players({"t": "ready", "ready": self.ready_map()})
+            if all(p.ready for p in self.players):
+                self.begin(random.choice(self.players))   # random first player
 
     def begin(self, first):
         a, b = self.players
@@ -382,7 +403,7 @@ class Game:
         self.broadcast({"t": "lobby", "text": text})
 
     def reset(self):
-        """Server Reset button: reset game + scores, then start a fresh match."""
+        """Server Reset button: reset game + scores, then pair players again (both press Ready)."""
         with self.lock:
             self.stop("Server reset the game.")
             self.try_start()
@@ -410,6 +431,8 @@ def handle(game, sock, addr):
                     game.on_chat(c, m.get("text"))
                 elif t == "bot":
                     game.add_bot(c)
+                elif t == "ready":
+                    game.on_ready(c)
                 elif t == "rematch":
                     game.on_rematch(c)
     except (OSError, ValueError):

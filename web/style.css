@@ -101,6 +101,8 @@ h1.logo { font-size: clamp(3.5rem, 14vw, 6rem); line-height: 1; }
 
 .lobby-actions { display: flex; justify-content: center; margin-top: .5rem; }
 .lobby-actions .btn { border-color: var(--lilac); color: var(--lilac); }
+.ready-box { display: flex; justify-content: center; margin-top: .5rem; }
+.ready-box .btn { font-size: 1.1rem; padding: .6rem 2.2rem; }
 
 /* ---------- scoreboard ---------- */
 .board { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center; }

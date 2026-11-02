@@ -44,7 +44,7 @@
 
   // ---------- game state ----------
   const S = {
-    me: "", opp: "", scores: {}, inMatch: false, active: false,
+    me: "", opp: "", scores: {}, inMatch: false, active: false, pairing: false,
     phase: "", round: 1, deadline: 0, total: 1,
     seq: [], pattern: [], repCount: 0, lastAct: Date.now(),
     hint: null, creating: false,
@@ -128,6 +128,15 @@
     }
   }
   function clearRoles() { setRoles("", "", ""); }
+  function renderReady(ready) {                   // "Ready ✓" / "Not ready" under each name
+    for (const [who, roleEl] of [[S.me, $("meRole")], [S.opp, $("oppRole")]]) {
+      roleEl.textContent = !who ? "" : ready[who] ? "Ready ✓" : "Not ready";
+    }
+    if (ready[S.me]) {
+      $("readyBtn").disabled = true;
+      $("readyBtn").textContent = "Waiting for " + S.opp + "...";
+    }
+  }
 
   function renderOnline() {
     const ul = $("onlineList");
@@ -265,12 +274,25 @@
         S.online = m.list;
         if (!S.inMatch) S.mode = m.mode || "classic";    // a running match keeps its own mode
         renderOnline(); renderMode(); renderLobbyActions();
-        if (!S.inMatch) {
+        if (!S.inMatch && !S.pairing) {
           setStatus("Online: " + m.list.join(", ") + (m.list.length < 2 ? "\nWaiting for another player..." : ""));
         }
         break;
 
+      case "pair":                                   // matched with an opponent: wait for both to press Ready
+        S.pairing = true; S.me = m.you; S.opp = m.opponent; S.scores = {};
+        $("result").hidden = true;
+        $("readyBtn").hidden = false; $("readyBtn").disabled = false; $("readyBtn").textContent = "Ready";
+        setStatus("You are playing " + S.opp + ". Press Ready when you're set!");
+        renderNames(); renderReady(m.ready);
+        break;
+
+      case "ready":
+        renderReady(m.ready);
+        break;
+
       case "lobby":
+        S.pairing = false; $("readyBtn").hidden = true;
         S.inMatch = false; S.deadline = 0; S.scores = {}; S.seq = []; S.pattern = []; S.opp = "";
         setActive(false); clearRoles(); renderLobbyActions();
         $("result").hidden = true;
@@ -280,6 +302,7 @@
         break;
 
       case "start":
+        S.pairing = false; $("readyBtn").hidden = true;
         S.inMatch = true; S.me = m.you; S.opp = m.opponent; S.scores = m.scores;
         S.mode = m.mode || "classic";
         renderMode(); renderOnline(); renderLobbyActions();
@@ -516,6 +539,7 @@
     setInterval(tick, 100);
 
     $("botBtn").addEventListener("click", () => { send({ t: "bot" }); $("botBtn").hidden = true; });
+    $("readyBtn").addEventListener("click", () => { ensureAudio(); send({ t: "ready" }); $("readyBtn").disabled = true; });
     $("openSettings").addEventListener("click", () => $("settings").showModal());
     $("reload").addEventListener("click", () => location.reload());
     $("rematch").addEventListener("click", () => {
