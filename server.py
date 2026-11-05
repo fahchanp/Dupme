@@ -4,8 +4,8 @@ Shows number of connected clients, the client list, a game-mode selector and a R
 Modes(chosen in the server window):
   classic: basic mode (assignment rules), no note limit, no hints
   easy: at most 5 notes per pattern + hints
-  expert: play by ear - the repeater only hears the pattern (the keys do not light up), no hints
-  reverse: at most 8 notes per pattern, and the repeater must play it backwards (last note first)
+  expert: play by ear, no hints
+  reverse: at most 8 notes per pattern, and the repeater must play it backwards
   AI bot can join as the second player when a user asks for it ("Play vs AI bot")."""
 import json
 import random
@@ -16,11 +16,11 @@ import tkinter as tk
 
 HOST, PORT = "0.0.0.0", 45456
 CREATE_SECS, REPEAT_SECS = 10, 20
-MAX_LEN = {"easy": 5, "reverse": 8}   # max notes in one pattern per mode (no limit in Classic and Expert)
-SHOW_DELAY = 1.0             # pause after the last note so the opponent can see it
+MAX_LEN = {"easy": 5, "reverse": 8} # max notes in one pattern per mode (no limit in Classic and Expert)
+SHOW_DELAY = 1.0 # pause after the last note so the opponent can see it
 NOTES = list("CDEFGAB")
-BOT_LEN = 8                  # notes the bot creates (fewer if the mode's MAX_LEN is lower)
-BOT_SKILL, BOT_DECAY, BOT_MIN = 0.95, 0.07, 0.30   # chance to recall note i = SKILL - DECAY * i
+BOT_LEN = 8 # notes the bot creates (fewer if the mode's MAX_LEN is lower)
+BOT_SKILL, BOT_DECAY, BOT_MIN = 0.95, 0.07, 0.30 # chance to recall note i = SKILL - DECAY * i
 
 
 class Client:
@@ -51,7 +51,7 @@ class Bot:
         self.addr = ("AI", 0)
         self.rematch = self.ready = False
         self.timers = []
-        self.seen, self.mine = [], []      # pattern I watched / pattern I created
+        self.seen, self.mine = [], [] # pattern I watched / pattern I created
         self.creator_me, self.other = False, None
 
     # messages from the game (same messages a real client would get)
@@ -111,7 +111,7 @@ class Bot:
         i = m["i"]
         if i >= len(self.mine):
             return
-        if self.game.match_mode == "reverse":   # the human played the pattern backwards
+        if self.game.match_mode == "reverse": # the human played the pattern backwards
             i = len(self.mine) - 1 - i
         key = (self.mine[i - 1] if i else None, self.mine[i])
         mem = self.memory()
@@ -149,11 +149,11 @@ class Bot:
             return
         if self.game.match_mode == "reverse":
             pat.reverse()
-        gap = max(0.3, min(1.3, 15.0 / len(pat)))     # stay inside the 20s limit
+        gap = max(0.3, min(1.3, 15.0 / len(pat))) # stay inside the 20s limit
         t = random.uniform(1.2, 2.2)
         for i, note in enumerate(pat):
             if random.random() > max(BOT_MIN, BOT_SKILL - BOT_DECAY * i):
-                k = NOTES.index(note)                 # a slip: hit a neighbouring key
+                k = NOTES.index(note) # a slip: hit a neighbouring key
                 note = NOTES[random.choice([j for j in (k - 2, k - 1, k + 1, k + 2) if 0 <= j < 7])]
             t += random.uniform(gap * 0.5, gap)
             self.later(t, self.game.on_key, self, note)
@@ -231,7 +231,7 @@ class Game:
             was_player = c in self.players
             self.clients.remove(c)
             for b in [x for x in self.clients if isinstance(x, Bot) and x.owner is c]:
-                b.cancel()                       # the bot leaves with the human who invited it
+                b.cancel() # the bot leaves with the human who invited it
                 self.clients.remove(b)
             self.broadcast(self.players_msg())
             if was_player:
@@ -261,11 +261,11 @@ class Game:
             c.ready = True
             self.send_players({"t": "ready", "ready": self.ready_map()})
             if all(p.ready for p in self.players):
-                self.begin(random.choice(self.players))   # random first player
+                self.begin(random.choice(self.players)) # random first player
 
     def begin(self, first):
         a, b = self.players
-        self.match_mode = self.mode            # mode is fixed for the whole match
+        self.match_mode = self.mode # mode is fixed for the whole match
         self.scores = {a.nick: 0, b.nick: 0}
         self.round, self.winner = 1, None
         self.stats = {c.nick: {"correct": 0, "total": 0, "streak": 0, "best": 0,
@@ -315,7 +315,7 @@ class Game:
         self.send_players({"t": "scores", "scores": self.scores, "round": self.round})
         if self.round == 1:
             self.round = 2
-            self.creator, self.repeater = self.repeater, self.creator   # swap roles
+            self.creator, self.repeater = self.repeater, self.creator # swap roles
             self.timer = threading.Timer(3, self.next_round, args=(self.token,))
             self.timer.daemon = True
             self.timer.start()
@@ -351,7 +351,7 @@ class Game:
                     return
                 self.pattern.append(note)
                 self.send_players({"t": "pkey", "note": note, "i": len(self.pattern) - 1})
-                if limit and len(self.pattern) >= limit:   # pattern full -> repeat phase after a short pause
+                if limit and len(self.pattern) >= limit: # pattern full -> repeat phase after a short pause
                     if self.timer:
                         self.timer.cancel()
                     self.token += 1

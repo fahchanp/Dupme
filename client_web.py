@@ -1,13 +1,3 @@
-""" Web client
-
-Run:   python client_web.py            (uses SERVER_HOST below)
-       python client_web.py 192.168.1.20   (optional: server IP on the command line)
-
-Browsers cannot open raw TCP sockets, so this small program does the socket part:
-it connects to server.py over TCP (same protocol as client.py) and serves the page
-in the web/ folder on http://127.0.0.1:8767. The page talks to this program, and
-this program talks to the game server.
-"""
 import json
 import os
 import queue
@@ -17,7 +7,7 @@ import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-SERVER_HOST, SERVER_PORT = "172.20.10.3", 45456 # game server
+SERVER_HOST, SERVER_PORT = "172.20.10.8", 45456 # game server
 WEB_PORT = 8767 # first local port to try
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),

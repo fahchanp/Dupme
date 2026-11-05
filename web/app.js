@@ -3,16 +3,16 @@
   const NOTES = ["C", "D", "E", "F", "G", "A", "B"];
   const FREQ = { C: 261.63, D: 293.66, E: 329.63, F: 349.23, G: 392.0, A: 440.0, B: 493.88 };
   const DEFAULT_KEYS = { C: "a", D: "s", E: "d", F: "f", G: "g", A: "h", B: "j" };
-  const MAX_LEN = { easy: 5, reverse: 8 };   // max notes in one pattern per mode (server enforces too)
-  const IDLE_MS = 3000;           // hint appears after this much idle time
-  const RING = 326.73;            // circumference of the timer ring (r = 52)
+  const MAX_LEN = { easy: 5, reverse: 8 }; // max notes in one pattern per mode (server enforces too)
+  const IDLE_MS = 3000; // hint appears after this much idle time
+  const RING = 326.73; // circum of the timer ring (r = 52)
   const COLORS = { Classic: "#fffbee", Candy: "#ffc1e3", Ocean: "#b3e5fc", Mint: "#b9f6ca", Sunset: "#ffcc80", Night: "#546e7a" };
   const QUICK = ["Good luck!", "Nice one!", "GG", "Oops!", "Rematch?"];
 
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, "0");
 
-  // ---------- settings (saved in this browser) ----------
+  // ---- settings ----
   const cfg = loadCfg();
   function loadCfg() {
     const c = { color: "Classic", hints: true, keys: { ...DEFAULT_KEYS }, custom: {} };
@@ -29,7 +29,7 @@
     } catch (e) { /* use defaults */ }
     return c;
   }
-  // picture spread across the keys (kept apart from the settings because it is larger)
+  // picture spread across the keys
   let img = "";
   try { img = localStorage.getItem("dupme.image") || ""; } catch (e) { img = ""; }
 
@@ -42,21 +42,21 @@
     try { localStorage.setItem("dupme.settings", JSON.stringify(cfg)); } catch (e) { /* ignore */ }
   }
 
-  // ---------- game state ----------
+  // ---- game state ----
   const S = {
     me: "", opp: "", scores: {}, inMatch: false, active: false, pairing: false,
     phase: "", round: 1, deadline: 0, total: 1,
     seq: [], pattern: [], repCount: 0, lastAct: Date.now(),
     hint: null, creating: false,
-    mode: "classic", online: [],        // classic = assignment rules, easy = 5-note cap + hints, expert = play by ear, reverse = play it backwards
+    mode: "classic", online: [], // classic = assignment rules, easy = 5-note cap + hints, expert = play by ear, reverse = play backwards
   };
-  const capped = () => S.mode === "easy";          // hints
-  const maxLen = () => MAX_LEN[S.mode] || 0;       // note limit while creating (0 = none)
-  const expert = () => S.mode === "expert";        // the watcher only hears the pattern
+  const capped = () => S.mode === "easy"; 
+  const maxLen = () => MAX_LEN[S.mode] || 0; 
+  const expert = () => S.mode === "expert";
   const keyEls = {};
   const flashTimers = {};
 
-  // ---------- sound (Web Audio, no files needed) ----------
+  // ---- sound ----
   let actx = null;
   function ensureAudio() {
     try {
@@ -86,9 +86,9 @@
     } catch (e) { /* audio must never break the game */ }
   }
 
-  // ---------- talking to client_web.py ----------
+  // ---- talking to client_web.py ----
   let chain = Promise.resolve();
-  function send(msg) {           // sent one after another so note order is kept
+  function send(msg) { // sent one after another so note order is kept
     chain = chain.then(() => fetch("/send", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(msg),
     }).catch(() => {}));
@@ -101,7 +101,7 @@
     });
   }
 
-  // ---------- rendering ----------
+  // ---- rendering ----
   function setStatus(text) { $("status").textContent = text; }
 
   function renderNames() {
@@ -128,7 +128,7 @@
     }
   }
   function clearRoles() { setRoles("", "", ""); }
-  function renderReady(ready) {                   // "Ready ✓" / "Not ready" under each name
+  function renderReady(ready) { // "Ready" / "Not ready" under each name
     for (const [who, roleEl] of [[S.me, $("meRole")], [S.opp, $("oppRole")]]) {
       roleEl.textContent = !who ? "" : ready[who] ? "Ready ✓" : "Not ready";
     }
@@ -159,7 +159,7 @@
                 reverse: "Repeat the pattern backwards: last note first (8 notes at most)" }[S.mode]
       || "The standard rules: 10 seconds to create, 20 seconds to repeat";
   }
-  function renderLobbyActions() {                 // the AI bot button shows only when you wait alone
+  function renderLobbyActions() { // the AI bot button shows only when you wait alone
     $("botBtn").hidden = S.inMatch || S.online.length !== 1;
   }
 
@@ -174,7 +174,7 @@
     p.dataset.img = img ? "1" : "0";
     if (img) p.style.setProperty("--img", 'url("' + img + '")'); else p.style.removeProperty("--img");
     p.classList.toggle("on", S.active);
-    for (const n of NOTES) {                       // per-key colors override the theme
+    for (const n of NOTES) { // per-key colors override the theme
       const el = keyEls[n], c = cfg.custom[n];
       if (c) {
         el.style.setProperty("--key-on", c);
@@ -201,7 +201,7 @@
     flashTimers[note] = setTimeout(() => { delete el.dataset.flash; }, ms || 250);
   }
 
-  // ---------- hint (Easy mode, repeat phase) ----------
+  // ---- hint (Easy mode, repeat phase) ----
   // Shows two keys: the right one and one other key picked at random.
   function clearHint() {
     if (S.hint) for (const n of S.hint) delete keyEls[n].dataset.hint;
@@ -220,7 +220,7 @@
     $("hint").textContent = "Hint: one of these is next: " + pair[0] + " or " + pair[1];
   }
 
-  // ---------- timer ----------
+  // ---- timer ----
   function tick() {
     const now = Date.now();
     const clock = $("clock");
@@ -239,7 +239,7 @@
     maybeHint(now);
   }
 
-  // ---------- input ----------
+  // ---- input ----
   function press(note) {
     if (!S.active) return;
     if (maxLen() && S.phase === "CREATE" && S.pattern.length >= maxLen()) return;
@@ -259,27 +259,27 @@
     if (note) { e.preventDefault(); press(note); }
   });
 
-  // ---------- messages from the game server ----------
+  // ----- messages from the game server -----
   function handle(m) {
     switch (m.t) {
-      case "nick":                                   // server accepted the nickname: say hello
+      case "nick":
         S.me = m.nick; renderNames();
         $("welcome").textContent = "Welcome, " + S.me + ".";
         $("welcomeTitle").textContent = "Welcome, " + S.me + "!";
-        if (!$("welcomeDlg").open) $("welcomeDlg").show();   // not modal: a match may start right away
+        if (!$("welcomeDlg").open) $("welcomeDlg").show();
         setTimeout(() => $("welcomeDlg").close(), 2500);
         break;
 
       case "players":
         S.online = m.list;
-        if (!S.inMatch) S.mode = m.mode || "classic";    // a running match keeps its own mode
+        if (!S.inMatch) S.mode = m.mode || "classic"; // a running match keeps its own mode
         renderOnline(); renderMode(); renderLobbyActions();
         if (!S.inMatch && !S.pairing) {
           setStatus("Online: " + m.list.join(", ") + (m.list.length < 2 ? "\nWaiting for another player..." : ""));
         }
         break;
 
-      case "pair":                                   // matched with an opponent: wait for both to press Ready
+      case "pair": // matched with an opponent: wait for both to press Ready
         S.pairing = true; S.me = m.you; S.opp = m.opponent; S.scores = {};
         $("result").hidden = true;
         $("readyBtn").hidden = false; $("readyBtn").disabled = false; $("readyBtn").textContent = "Ready";
@@ -341,9 +341,9 @@
         clearHint();
         S.seq.push({ note: m.note, ok: null });
         const full = maxLen() && S.phase === "CREATE" && S.pattern.length >= maxLen();
-        if (full) {                                  // pattern full: stop the clock, lock the keys
+        if (full) { // pattern full: stop the clock, lock the keys
           S.deadline = 0;
-          setActive(false);                          // (repaints keys, so flash comes after)
+          setActive(false); // (repaints keys, so flash comes after)
           setStatus("Pattern complete (" + maxLen() + " notes)! Repeat phase starting...");
         }
         if (expert() && !S.creating) playNote(m.note);   // Expert: the watcher only hears the note
@@ -403,7 +403,7 @@
     }
   }
 
-  function renderStats(stats) {                   // accuracy table at the end of a match
+  function renderStats(stats) { // accuracy table at the end of a match
     const body = $("statsBody");
     body.textContent = "";
     for (const name of [S.me, S.opp]) {
@@ -421,7 +421,7 @@
     $("resultStats").hidden = !body.children.length;
   }
 
-  // ---------- setup ----------
+  // ----- setup -----
   function buildPiano() {
     const p = $("piano");
     p.textContent = "";
@@ -435,7 +435,7 @@
       b.addEventListener("click", () => press(n));
       keyEls[n] = b; p.appendChild(b);
     }
-    for (const i of [1, 2, 4, 5, 6]) {              // decorative black keys
+    for (const i of [1, 2, 4, 5, 6]) { // decorative black keys
       const d = document.createElement("span");
       d.className = "black"; d.style.setProperty("--i", String(i));
       p.appendChild(d);
@@ -523,7 +523,7 @@
         if (e.key.length !== 1 || e.key === " ") return;
         const k = e.key.toLowerCase();
         const other = NOTES.find((x) => x !== n && cfg.keys[x] === k);
-        if (other) cfg.keys[other] = cfg.keys[n];         // swap, so keys always stay unique
+        if (other) cfg.keys[other] = cfg.keys[n]; // swap, so keys always stay unique
         cfg.keys[n] = k;
         saveCfg(); buildKeyInputs(); renderLegend();
         row.querySelectorAll("input")[NOTES.indexOf(n)].focus();
@@ -551,13 +551,13 @@
       const text = $("chatInput").value.trim();
       if (text) send({ t: "chat", text });
       $("chatInput").value = "";
-      $("chatInput").blur();                              // back to the game so shortcut keys work
+      $("chatInput").blur(); // back to the game so shortcut keys work
     });
     $("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const nick = $("nick").value.trim();
       if (!nick) return;
-      ensureAudio();                                      // needs a click/keypress to be allowed
+      ensureAudio(); // needs a click/keypress to be allowed
       $("loginErr").textContent = "";
       let res;
       try {
